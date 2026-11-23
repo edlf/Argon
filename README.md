@@ -7,6 +7,7 @@ Some earlier Ghidra was done by me, mostly UI for a 720p patch I never fully fin
 This is not meant to be a 1:1 implementation, most notably audio is not 100% correct. Some render bugs are not replicated either.
 
 ![Mars](images/mars.jpg)
+![Main Menu](images/main_menu.jpg)
 
 More screenshots in the images folder.
 
