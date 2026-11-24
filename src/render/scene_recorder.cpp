@@ -269,12 +269,14 @@ bool SceneRecorder::cullsBackFaces(const argon::MeshState &st) const
 
 // into the OIT targets: their program, the depth tested and never written. The rest of the translucent pass under
 // order independence writes no depth either, so a glass mesh (Mars's ONE / SRC_ALPHA dome) cannot hide the
-// translucent draws after it (docs\argon\differences.md "Translucency"); the solid parts write it as the game did
+// translucent draws after it (docs\argon\differences.md "Translucency"). The solid parts always write it, also for a
+// mesh the game draws without depth writes: the OIT composite goes over every solid pixel, so only depth keeps an
+// earlier draw's translucent pixels under it (Silver's speckle layer 462 under its river 165)
 void SceneRecorder::bindMeshState(const MeshCall &mesh)
 {
     const argon::MeshState &st = meshState(mesh.draw);
-    const bool writesDepth = st.depthWrite && (translucentDraws_ == TranslucentDraws::All || translucentDraws_ == TranslucentDraws::SolidParts ||
-                                               translucentDraws_ == TranslucentDraws::OitDepth);
+    const bool writesDepth = translucentDraws_ == TranslucentDraws::SolidParts ||
+                             (st.depthWrite && (translucentDraws_ == TranslucentDraws::All || translucentDraws_ == TranslucentDraws::OitDepth));
     const argon::gfx::Pipeline pipe = pipelineOf(st);
     if (pipe != boundPipe_)
     {
