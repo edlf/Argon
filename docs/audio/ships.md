@@ -76,7 +76,9 @@ How the game drives the curves (`engine_sound_update` 0xc5200, every frame, per 
 - Turbo (player_pad_input 0x70d92, each human player): the button held with turbo to use starts TURBOFIRE unless it
   plays, and the voice rounds the clip's `smpl` loop (tara: 11776..23411 of 37569 frames) while held; held without
   turbo, TURBOFIRE stops and TURBOFAIL plays unless playing: the same clip from its loop's end (0xc3540, the wind-down
-  tail; no pilot list names a TURBOFAIL folder); let go, both stop. Argon: RaceSfx::setTurbo, RaceSounds::stepTurbo.
+  tail; no pilot list names a TURBOFAIL folder); let go, both stop. "Playing" (0xc4a70) is a voice slot holding the
+  sound's key (+0x14), which only the stop 0xcafd0 clears, not the voice ending, so the tail plays once a hold (again
+  only if 26 other sounds reuse its slot first). Argon: RaceSfx::setTurbo, RaceSounds::stepTurbo.
 - 3D: craft 0's engine is placed on the listener; every other craft's (0xc3220: its normal set) at its position
   with MINDIST 50, MAXDIST 200, the rolloff curve and a doppler factor of 3. In game mode 4 (split screen) every
   craft's engine sits on the listener (0xc5510), so each player's is heard centred. Argon: Audio::playOtherEngines

@@ -88,6 +88,8 @@ class RaceSfx
     bool isPlayingKey(int key, int craft) const;
     bool holds(const Playing &playing, int key, int craft) const;
     void stopKey(int key, int craft);
+    bool failTailPlayed(int craft) const;
+    void forgetFailTail(int craft);
     glm::vec3 positionOf(const Playing &playing) const;
     bool inRange(const Playing &playing) const;
     void applyLevels(Playing &playing) const;
@@ -101,6 +103,9 @@ class RaceSfx
     bool centred_ = false;
     std::vector<glm::vec3> craftPositions_;
     std::vector<Playing> playing_;
+    // crafts whose TURBOFAIL started since the button was let go: the game's voice slot keeps the sound's key after
+    // the tail ends (only 0xcafd0 clears it), so 0xc4a70 still finds it and the tail plays once per hold
+    std::vector<int> failTailCrafts_;
     int nextHandle_ = 0;
     double clock_ = 0.0;
     float sfxVolume_ = 1.f;

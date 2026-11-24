@@ -157,7 +157,8 @@ void RaceSfx::stop(GenericSound id, int craft)
 }
 
 // 0x70d92: held with turbo, SF_SHIP_TURBOFIRE starts unless playing and rounds its loop; held without, it stops and
-// TURBOFAIL (the same clip from its loop's end, 0xc3540) plays unless playing; let go, both stop
+// TURBOFAIL (the same clip from its loop's end, 0xc3540) plays unless its slot still holds it, so once a hold;
+// let go, both stop
 void RaceSfx::setTurbo(int craft, Turbo turbo)
 {
     const int fire = kShipKey + int(ShipSound::TurboFire), fail = kShipKey + int(ShipSound::TurboFail);
@@ -165,6 +166,7 @@ void RaceSfx::setTurbo(int craft, Turbo turbo)
     {
         stopKey(fire, craft);
         stopKey(fail, craft);
+        forgetFailTail(craft);
         return;
     }
     Playing playing;
@@ -183,11 +185,22 @@ void RaceSfx::setTurbo(int craft, Turbo turbo)
         stopKey(fire, craft);
         return;
     }
-    if (!isPlayingKey(fail, craft))
+    if (!failTailPlayed(craft))
     {
         playing.key = fail;
         start(std::move(playing), Start::Tail);
+        failTailCrafts_.push_back(craft);
     }
+}
+
+bool RaceSfx::failTailPlayed(int craft) const
+{
+    return std::find(failTailCrafts_.begin(), failTailCrafts_.end(), craft) != failTailCrafts_.end();
+}
+
+void RaceSfx::forgetFailTail(int craft)
+{
+    failTailCrafts_.erase(std::remove(failTailCrafts_.begin(), failTailCrafts_.end(), craft), failTailCrafts_.end());
 }
 
 void RaceSfx::setVolumeMb(int handle, float mb)
@@ -237,6 +250,7 @@ void RaceSfx::resume()
 void RaceSfx::stopAll()
 {
     playing_.clear();
+    failTailCrafts_.clear();
 }
 
 // a generic sound, or the craft's ship sound (TURBOFAIL plays TURBOFIRE's clip)
