@@ -1,5 +1,5 @@
 """Tests for tools\\assets\\convert_assets.py's pure rules: reading a game .wav's chunks, the Vorbis comments, argon_decode's
-report, the fact cut and the Vorbis bit rate search (no ffmpeg: a fake encoder check).
+report, the fact cut, the effects' upsampled lengths and the Vorbis bit rate search (no ffmpeg: a fake encoder check).
 
 run: python -m unittest discover -s tools\\tests   (test.bat runs it through CTest)
 """
@@ -102,7 +102,7 @@ class EffectCommentTests(unittest.TestCase):
         wav = convert_assets.WavFile(loop_start=100, loop_end=399)
 
         # Act
-        comments = convert_assets.effect_comments(wav)
+        comments = convert_assets.effect_comments(wav, 1)
 
         # Assert
         self.assertEqual(comments, {"LOOPSTART": 100, "LOOPLENGTH": 300})
@@ -112,14 +112,64 @@ class EffectCommentTests(unittest.TestCase):
         wav = convert_assets.WavFile(fact_frames=6250)
 
         # Act
-        comments = convert_assets.effect_comments(wav)
+        comments = convert_assets.effect_comments(wav, 1)
 
         # Assert
         self.assertEqual(comments, {"PLAYLENGTH": 6250})
 
+    def test_upsampled_effect_doubles_the_play_length_and_loop(self):
+        # Arrange
+        wav = convert_assets.WavFile(fact_frames=6250, loop_start=100, loop_end=399)
+
+        # Act
+        comments = convert_assets.effect_comments(wav, 2)
+
+        # Assert
+        self.assertEqual(comments, {"PLAYLENGTH": 12500, "LOOPSTART": 200, "LOOPLENGTH": 600})
+
     def test_no_comments_without_fact_or_loop(self):
         # Arrange / Act / Assert
-        self.assertEqual(convert_assets.effect_comments(convert_assets.WavFile()), {})
+        self.assertEqual(convert_assets.effect_comments(convert_assets.WavFile(), 2), {})
+
+
+def decoded_sound(rate, frames, play_frames, loop_begin, loop_end):
+    return convert_assets.DecodedSound(convert_assets.Pcm(rate, 1, bytes(frames * convert_assets.SAMPLE_BYTES)), play_frames, loop_begin, loop_end)
+
+
+class UpsampledEffectTests(unittest.TestCase):
+    def test_keeps_the_middle_of_three_copies(self):
+        # Arrange
+        tripled = convert_assets.Pcm(44100, 1, b"aaaabbbbcccc")
+
+        # Act
+        middle = convert_assets.middle_copy(tripled, 4)
+
+        # Assert
+        self.assertEqual(middle.samples, b"bbbb")
+
+    def test_rejects_a_resampler_output_of_the_wrong_length(self):
+        # Arrange
+        tripled = convert_assets.Pcm(44100, 1, b"aaaabbbbccc")
+
+        # Act / Assert
+        with self.assertRaises(RuntimeError):
+            convert_assets.middle_copy(tripled, 4)
+
+    def test_ogg_at_twice_the_rate_and_lengths_is_the_same_sound(self):
+        # Arrange
+        original = decoded_sound(22050, 1000, 900, 10, 950)
+        converted = decoded_sound(44100, 2000, 1800, 20, 1900)
+
+        # Act / Assert
+        convert_assets.check_same_sound(Path("a.ogg"), converted, original)
+
+    def test_ogg_with_the_wav_s_own_lengths_is_rejected(self):
+        # Arrange
+        original = decoded_sound(22050, 1000, 900, 10, 950)
+
+        # Act / Assert
+        with self.assertRaises(RuntimeError):
+            convert_assets.check_same_sound(Path("a.ogg"), original, original)
 
 
 class DecodeReportTests(unittest.TestCase):

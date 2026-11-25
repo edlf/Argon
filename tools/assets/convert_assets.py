@@ -8,11 +8,14 @@ files are never changed):
                  (frontend_music, levelload_music) are decoded by argon's decoder (argon_decode) and cut to their fact
                  length. Each FLAC is decoded back and must equal the source's samples bit for bit.
   sound effects  audio/**/*.wav (Xbox ADPCM) -> <name>.ogg, Ogg Vorbis at 256 kbit/s, or libvorbis's highest bit rate
-                 for the format when it rejects 256 kbit/s (mono 22050 Hz, all of the game's effects: its limit is
-                 90 kbit/s). Decoded by argon's decoder (argon_decode), every ADPCM block whole as the viewer keeps it
-                 (loops wrap on whole blocks); the fact chunk's sample count is the comment PLAYLENGTH (where a
-                 one-shot stops), the smpl chunk's loop the comments LOOPSTART (first frame) and LOOPLENGTH (frames).
-                 Each Ogg is decoded back by the viewer and must give the .wav's length, play length and loop.
+                 for the format when it rejects 256 kbit/s (the effects upsampled to mono 44.1 kHz: its limit is
+                 240 kbit/s). Decoded by argon's decoder (argon_decode), every ADPCM block whole as the viewer keeps it
+                 (loops wrap on whole blocks), then resampled to twice its rate (44.1 kHz) by soxr, as a loop (its end
+                 runs into its start), so it reaches the mix through a clean filter instead of only miniaudio's
+                 unfiltered linear resampler (docs\\audio\\README.md "Converted files"). The fact chunk's sample
+                 count, doubled, is the comment PLAYLENGTH (where a one-shot stops), the smpl chunk's loop, doubled, the
+                 comments LOOPSTART (first frame) and LOOPLENGTH (frames). Each Ogg is decoded back by the viewer and
+                 must give twice the .wav's length, play length and loop, at twice its rate.
 
 The viewer loads <name>.flac / <name>.ogg in place of a game .wav when it is there (audio\\audio.cpp loadGameSound), and
 lists a folder's sounds by those names when the .wav is gone (audio\\game_sound_files.hpp).
@@ -46,6 +49,9 @@ HEADER_PAGES_BYTES = 64 * 1024   # the streams' identification pages open the fi
 BINK_HEADER_BYTES = 44
 FLAC = ["-c:a", "flac", "-compression_level", "8"]
 WANTED_VORBIS_KBITS = 256
+EFFECT_UPSAMPLING = 2   # the effects' 22050 Hz to 44100 Hz: the lengths and loops stay whole frames
+# soxr's best, its passband to 99% of the source's band (the effects carry sound right up to 11 kHz)
+EFFECT_RESAMPLER = "aresample={rate}:resampler=soxr:precision=28:cutoff=0.99"
 LOWEST_VORBIS_KBITS = 8
 WAV_PCM = 1
 SAMPLE_BYTES = 2   # 16-bit samples
@@ -133,12 +139,13 @@ def parse_wav(contents):
     return wav
 
 
-def effect_comments(wav):
-    """the Vorbis comments: PLAYLENGTH the fact count (a one-shot's length), the smpl loop [start, end] as LOOPSTART and
-    LOOPLENGTH (the viewer's loop is [start, end + 1), wav.cpp)"""
-    comments = {"PLAYLENGTH": wav.fact_frames} if wav.fact_frames else {}
+def effect_comments(wav, upsampling):
+    """the Vorbis comments for the effect at `upsampling` times its rate: PLAYLENGTH the fact count (a one-shot's length),
+    the smpl loop [start, end] as LOOPSTART and LOOPLENGTH (the viewer's loop is [start, end + 1), wav.cpp), each
+    in the upsampled frames"""
+    comments = {"PLAYLENGTH": wav.fact_frames * upsampling} if wav.fact_frames else {}
     if wav.loop_end > wav.loop_start:
-        comments.update({"LOOPSTART": wav.loop_start, "LOOPLENGTH": wav.loop_end + 1 - wav.loop_start})
+        comments.update({"LOOPSTART": wav.loop_start * upsampling, "LOOPLENGTH": (wav.loop_end + 1 - wav.loop_start) * upsampling})
     return comments
 
 
@@ -261,15 +268,26 @@ class Converter:
             raise RuntimeError(f"{target}: the FLAC does not decode to the source's samples")
 
     def convert_effect(self, source, target):
-        """the whole decode, the padded last block included (loops wrap on whole blocks); one-shots stop at PLAYLENGTH"""
+        """the whole decode, the padded last block included (loops wrap on whole blocks), upsampled; one-shots stop at
+        PLAYLENGTH"""
         wav = parse_wav(source.read_bytes())
         original = self.decode_with_viewer(source)
-        pcm = original.pcm
+        pcm = self.upsampled_effect(original.pcm)
         options = ["-c:a", "libvorbis", "-b:a", f"{self.vorbis_kbits(pcm.rate, pcm.channels)}k"]
-        for key, value in effect_comments(wav).items():
+        for key, value in effect_comments(wav, EFFECT_UPSAMPLING).items():
             options += ["-metadata", f"{key}={value}"]
         self.encode_pcm(pcm, options, target, "ogg")
         check_same_sound(target, self.decode_with_viewer(target), original)
+
+    def upsampled_effect(self, pcm):
+        """the effect at EFFECT_UPSAMPLING times its rate, resampled as a loop: three copies in a row, the middle one
+        kept, so a loop's wrap stays seamless (a one-shot's edges are silent or close to it, where the wrap is no
+        different from silence)"""
+        rate = pcm.rate * EFFECT_UPSAMPLING
+        command = [str(self.ffmpeg), "-v", "error", "-f", "s16le", "-ar", str(pcm.rate), "-ac", str(pcm.channels), "-i", "pipe:0",
+                   "-af", EFFECT_RESAMPLER.format(rate=rate), "-f", "s16le", "pipe:1"]
+        tripled = subprocess.run(command, input=pcm.samples * 3, check=True, capture_output=True, timeout=ENCODE_TIMEOUT_SECONDS).stdout
+        return middle_copy(Pcm(rate, pcm.channels, tripled), len(pcm.samples) * EFFECT_UPSAMPLING)
 
     def convert_sounds(self, conversions, convert):
         for conversion in conversions:
@@ -321,12 +339,24 @@ class Converter:
         check_same_sound(target, self.decode_with_viewer(target), self.decode_with_viewer(source))
 
 
+def sound_lengths(sound, upsampling=1):
+    """a decode's rate, frames, one-shot length and loop, each times `upsampling`"""
+    return tuple(value * upsampling for value in (sound.pcm.rate, sound.pcm.frames(), sound.play_frames, sound.loop_begin, sound.loop_end))
+
+
 def check_same_sound(target, converted, original):
-    """the viewer plays the Ogg as the .wav: the same length, one-shot length and loop"""
-    lengths = (converted.pcm.frames(), converted.play_frames, converted.loop_begin, converted.loop_end)
-    expected = (original.pcm.frames(), original.play_frames, original.loop_begin, original.loop_end)
+    """the viewer plays the Ogg as the .wav at EFFECT_UPSAMPLING times its rate: the rate, length, one-shot length and
+    loop all scaled by it"""
+    lengths, expected = sound_lengths(converted), sound_lengths(original, EFFECT_UPSAMPLING)
     if lengths != expected:
-        raise RuntimeError(f"{target}: frames, play frames, loop {lengths}; the .wav has {expected}")
+        raise RuntimeError(f"{target}: rate, frames, play frames, loop {lengths}; the .wav upsampled has {expected}")
+
+
+def middle_copy(tripled, copy_bytes):
+    """the middle of three copies resampled in a row; raises when the resampler did not make exactly three copies"""
+    if len(tripled.samples) != 3 * copy_bytes:
+        raise RuntimeError(f"the resampler made {len(tripled.samples)} bytes for three copies of {copy_bytes}")
+    return Pcm(tripled.rate, tripled.channels, tripled.samples[copy_bytes:2 * copy_bytes])
 
 
 def read_bink_header(bik):

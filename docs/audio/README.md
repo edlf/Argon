@@ -41,14 +41,23 @@ music's segments and the engines' `.ini` layer names don't change):
   `regn`, `ovwf`, `umid`); two (flames_music4, flames on_start) have an `smpl` chunk with no loop. None of it is sound
   or loop data the game uses. The 6 ADPCM files (frontend_music1..5, levelload_music1) are decoded by argon and cut
   to their `fact` length (what the music plays: `Pcm::playFrames`). Each FLAC decodes bit for bit to the source's samples.
-- Sound effects, `audio\**`, 617 files, all ADPCM mono 22050 Hz: `<name>.ogg`, Vorbis at 256 kbit/s, but libvorbis
-  takes at most 90 kbit/s for mono 22050 Hz, so they are at 90 kbit/s (the script finds the highest for each format
-  and says so). Decoded by argon with every block whole, the padded last block included, as `loadWav` keeps them
-  (loops wrap on whole blocks, see above), so the Ogg plays exactly like the `.wav`: the `fact` count is the Vorbis
-  comment `PLAYLENGTH`, read into `Pcm::playFrames` where one-shots stop (`song_files.cpp` `playFramesFromComments`),
-  and the `smpl` loop (150 files) the comments `LOOPSTART` (first frame) and `LOOPLENGTH` (frames, `end + 1 - start`),
-  read into `Pcm::sampleLoopBegin / End` (`sampleLoopFromComments`). The script checks each Ogg on argon's own
-  decode: the same length, play length and loop as the `.wav` (`argon_decode` prints them).
+- Sound effects, `audio\**`, 617 files, all ADPCM mono 22050 Hz: `<name>.ogg` at **44.1 kHz**, Vorbis at 256 kbit/s,
+  but libvorbis takes at most 240 kbit/s for mono 44.1 kHz, so they are at 240 kbit/s (the script finds the highest for
+  each format and says so). Decoded by argon with every block whole, the padded last block included, as `loadWav`
+  keeps them (loops wrap on whole blocks, see above), then resampled to twice their rate by soxr (precision 28, cutoff
+  0.99: the effects carry sound right up to 11 kHz) as a loop, three copies in a row with the middle one kept, so a
+  loop's wrap stays as it was. Why: miniaudio resamples each sound to the mix with plain linear interpolation (its
+  low-pass is off, `lpfOrder = 0` in `ma_engine_node`), which from 22.05 kHz leaves images of the sound in the
+  11–22 kHz band (a top-end sizzle on the bright ones: pickups, UI rollovers) and dulls 5–11 kHz by ~3 dB. Measured
+  over all 617 at a 48 kHz mix against the band-limited ideal: the error above 11 kHz went from −36 to −53 dB (median),
+  the whole error from −25 to −32 dB. 79 dark sounds (LFE, hums, sub loops) measure worse, ~−49 to ~−41 dB: libvorbis
+  at 44.1 kHz mono bottoms out there whatever the bit rate (q10 = 240 kbit/s); judged by ear, lossless FLAC (49 MB
+  against 31 MB) was not worth it. The `fact` count, doubled, is the Vorbis comment `PLAYLENGTH`, read into
+  `Pcm::playFrames` where one-shots stop (`song_files.cpp` `playFramesFromComments`), and the `smpl` loop (150 files),
+  doubled, the comments `LOOPSTART` (first frame) and `LOOPLENGTH` (frames, `end + 1 - start`), read into
+  `Pcm::sampleLoopBegin / End` (`sampleLoopFromComments`). The engines' pitches follow each file's own rate
+  (`engine_voices.cpp`). The script checks each Ogg on argon's own decode: twice the `.wav`'s rate, length, play length
+  and loop (`argon_decode` prints them).
 - Not converted: the story scenes' speech, `data\movies\speech` (224 ADPCM files, read from the `.wav`).
 - Deleting the originals: `python tools\assets\delete_converted_originals.py [--delete] [--ffmpeg <ffmpeg>] [--decoder <argon_decode.exe>]
   [--game <folder>]` checks each original the converter handles (the `.bik` videos too) and reports it as verified (the

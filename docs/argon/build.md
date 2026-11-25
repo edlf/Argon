@@ -57,8 +57,8 @@ converts them next to the originals with ffmpeg (needs ffmpeg installed, with li
 Xbox ADPCM sounds): the intro videos (Bink, .bik) to one .ogv each (Theora picture + Vorbis soundtrack, muxed), which argon plays before
 the title screen (`--no-intro` skips them; A / START skips one once the front end's models have loaded, about a second); the music
 (`media\music`) to lossless .flac; the sound effects (`audio`) to Ogg Vorbis, 256 kbit/s or the highest libvorbis takes for the format
-(90 kbit/s for their mono 22050 Hz), every ADPCM block whole as argon decodes it, with the one-shot length (`fact`) and the loops kept
-as PLAYLENGTH / LOOPSTART / LOOPLENGTH comments. Argon uses a .flac / .ogg in place of
+(240 kbit/s for mono 44.1 kHz), every ADPCM block whole as argon decodes it, resampled from 22.05 to 44.1 kHz by soxr, with the
+one-shot length (`fact`) and the loops kept, doubled, as PLAYLENGTH / LOOPSTART / LOOPLENGTH comments. Argon uses a .flac / .ogg in place of
 the .wav next to it ([audio/README.md](../audio/README.md) "Converted files"); outputs newer than their source are skipped.
 
 The 3D sounds' HRTF tables: `python -I tools\assets\extract_hrtf.py [--game <folder>] [--force]` copies them out of `default.xbe` into
