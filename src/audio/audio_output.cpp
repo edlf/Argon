@@ -1,6 +1,7 @@
 #include "audio/audio_output.hpp"
 
 #include "audio/mix_paths.hpp"
+#include "audio/output_dither.hpp"
 #include "audio/peak_limiter.hpp"
 #include "audio/world_effects.hpp"
 #include "miniaudio.h"
@@ -11,21 +12,35 @@ namespace
 {
 const float kLimiterThreshold = 0.97f;
 const float kLimiterReleaseSeconds = 0.05f;
-const int kXboxRate = 48000;   // the APU's mix rate
+const int kXboxRate = 48000;   // the APU's mix rate, which the HRTF and crosstalk filters are designed for
+const int kCdRate = 44100;     // the game's songs' rate: a device at it plays them unresampled
+
+// a device at 44.1 kHz mixes at its rate, so the songs and the mix skip a 44.1 -> 48 -> 44.1 kHz round trip; at any
+// other rate the mix stays at 48 kHz, where the filters are right, and miniaudio converts it once for the device
+int mixRateFor(int deviceRate)
+{
+    return deviceRate == kCdRate ? kCdRate : kXboxRate;
+}
 }  // namespace
 
 struct AudioOutput::Mixer
 {
     ma_engine engine{};
     PeakLimiter limiter;
+    OutputDither dither;
     std::unique_ptr<WorldEffects> world;   // released before the engine
-    bool hasDevice = false;                 // false: tests mix by renderFrames
+    bool hasDevice = false;                 // false: tests mix by renderFrames, undithered so their mixes stay exact
 
     // miniaudio's audio thread, after it has mixed every sound
     static void limitFinalMix(void *mixer, float *frames, ma_uint64 frameCount)
     {
         auto *owner = static_cast<Mixer *>(mixer);
-        owner->limiter.process(frames, size_t(frameCount), int(ma_engine_get_channels(&owner->engine)));
+        const int channels = int(ma_engine_get_channels(&owner->engine));
+        owner->limiter.process(frames, size_t(frameCount), channels);
+        if (owner->hasDevice)
+        {
+            owner->dither.process(frames, size_t(frameCount) * size_t(channels));
+        }
     }
 };
 
@@ -52,20 +67,18 @@ void AudioOutput::openWithoutDevice(int sampleRate, mix::SpeakerLayout layout)
     start(Device::None, sampleRate);
 }
 
+// with a device, it is opened at its own rate first: kept when that is the mix's rate, else opened again at 48 kHz
 void AudioOutput::start(Device device, int sampleRate)
 {
     const bool withDevice = device == Device::Played;
     auto mixer = std::make_unique<Mixer>();
-    ma_engine_config config = ma_engine_config_init();
-    config.channels = ma_uint32(mix::channelCount(layout_));
-    config.sampleRate = ma_uint32(sampleRate ? sampleRate : kXboxRate);
-    config.noDevice = withDevice ? MA_FALSE : MA_TRUE;
-    config.noAutoStart = MA_TRUE;   // the limiter needs the sample rate first
-    config.onProcess = Mixer::limitFinalMix;
-    config.pProcessUserData = mixer.get();
-    if (ma_engine_init(&config, &mixer->engine) != MA_SUCCESS)
+    initEngine(*mixer, withDevice, withDevice ? 0 : (sampleRate ? sampleRate : kXboxRate));
+    const int deviceRate = int(ma_engine_get_sample_rate(&mixer->engine));
+    if (withDevice && mixRateFor(deviceRate) != deviceRate)
     {
-        throw std::runtime_error("no audio output device");
+        ma_engine_uninit(&mixer->engine);
+        mixer->engine = {};
+        initEngine(*mixer, withDevice, kXboxRate);
     }
     mixer->limiter = PeakLimiter(kLimiterThreshold, kLimiterReleaseSeconds, int(ma_engine_get_sample_rate(&mixer->engine)));
     auto world = std::make_unique<WorldEffects>();
@@ -73,18 +86,39 @@ void AudioOutput::start(Device device, int sampleRate)
     {
         mixer->world = std::move(world);
     }
+    mixer->hasDevice = withDevice;
     if (withDevice && ma_engine_start(&mixer->engine) != MA_SUCCESS)
     {
         ma_engine_uninit(&mixer->engine);
         throw std::runtime_error("the audio output device did not start");
     }
-    mixer->hasDevice = withDevice;
     mixer_ = std::move(mixer);
+}
+
+// rate 0: the device's own
+void AudioOutput::initEngine(Mixer &mixer, bool withDevice, int rate)
+{
+    ma_engine_config config = ma_engine_config_init();
+    config.channels = ma_uint32(mix::channelCount(layout_));
+    config.sampleRate = ma_uint32(rate);
+    config.noDevice = withDevice ? MA_FALSE : MA_TRUE;
+    config.noAutoStart = MA_TRUE;   // the limiter needs the sample rate first
+    config.onProcess = Mixer::limitFinalMix;
+    config.pProcessUserData = &mixer;
+    if (ma_engine_init(&config, &mixer.engine) != MA_SUCCESS)
+    {
+        throw std::runtime_error("no audio output device");
+    }
 }
 
 bool AudioOutput::isOpen() const
 {
     return mixer_ != nullptr;
+}
+
+int AudioOutput::sampleRate() const
+{
+    return mixer_ ? int(ma_engine_get_sample_rate(&mixer_->engine)) : 0;
 }
 
 mix::SpeakerLayout AudioOutput::layout() const
@@ -183,6 +217,7 @@ VoiceRouting AudioOutput::routingFor(const hrtf::Direction &direction) const
     const bool surround = layout_ == mix::SpeakerLayout::Surround;
     VoiceRouting routing;
     routing.ears = earsFor(surround ? hrtf::mirroredToFront(direction) : direction);
+    routing.ears.delay *= hrtfDelayScale();
     const float binsGain = mix::gainOf(mix::kHrtfBinsMb);
     for (size_t tap = 0; tap < size_t(routing.ears.taps); ++tap)
     {
@@ -194,6 +229,12 @@ VoiceRouting AudioOutput::routingFor(const hrtf::Direction &direction) const
         routing.frontRear = hrtf::surroundGains(direction);
     }
     return routing;
+}
+
+// the tables' delays are in 48 kHz samples
+float AudioOutput::hrtfDelayScale() const
+{
+    return isOpen() ? float(sampleRate()) / float(kXboxRate) : 1.f;
 }
 
 VoiceRouting AudioOutput::routingWithSpeakers(const hrtf::Direction &direction, const mix::SpeakerFlags &speakers) const

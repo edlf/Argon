@@ -456,6 +456,7 @@ set(ARGON_SOURCES
     src/audio/audio_output.cpp
     src/audio/voice.cpp
     src/audio/peak_limiter.cpp
+    src/audio/output_dither.cpp
     src/audio/music_sequence.cpp
     src/audio/music_modes.cpp
     src/audio/music_fade.cpp
@@ -630,6 +631,14 @@ add_executable(argon_peak_limiter_tests
 target_include_directories(argon_peak_limiter_tests PRIVATE src)
 argon_warnings(argon_peak_limiter_tests)
 add_test(NAME peak_limiter_tests COMMAND argon_peak_limiter_tests)
+
+# tests\output_dither_tests.cpp: the 16-bit TPDF dither on the final mix (audio\output_dither.hpp)
+add_executable(argon_output_dither_tests
+    tests/output_dither_tests.cpp
+    src/audio/output_dither.cpp)
+target_include_directories(argon_output_dither_tests PRIVATE src)
+argon_warnings(argon_output_dither_tests)
+add_test(NAME output_dither_tests COMMAND argon_output_dither_tests)
 
 # tests\weapon_damage_tests.cpp: a weapon hit's damage arithmetic (logic\weapon_damage.hpp, the game's 0x6acf0)
 add_executable(argon_weapon_damage_tests
@@ -984,6 +993,7 @@ add_executable(argon_music_tests
     src/audio/song_feed.cpp
     src/audio/audio_output.cpp
     src/audio/peak_limiter.cpp
+    src/audio/output_dither.cpp
     src/audio/world_effects.cpp
     src/audio/hrtf.cpp
     src/audio/fir_block.cpp
@@ -1015,6 +1025,7 @@ add_executable(argon_surround_mix_tests
     src/audio/voice.cpp
     src/audio/audio_output.cpp
     src/audio/peak_limiter.cpp
+    src/audio/output_dither.cpp
     src/audio/world_effects.cpp
     src/audio/hrtf.cpp
     src/audio/fir_block.cpp

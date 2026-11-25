@@ -17,6 +17,13 @@ then wraps within the sound's own sample-to-sample range.
 Music: PCM16 stereo 44.1 kHz (front-end music: stereo ADPCM). Decoder:
 `src\audio\wav.cpp` (`argon --decode in.wav out.wav` writes PCM and prints the format, `playFrames` and the `smpl` loop).
 
+**Output** (`audio_output.cpp`): the mix runs at the Xbox's 48 kHz, which the HRTF and crosstalk filters are designed
+for, except on a 44.1 kHz device, where it runs at 44.1 kHz so the songs play unresampled instead of going
+44.1 -> 48 -> 44.1 kHz (the HRTF delays are scaled to the rate; the filters' taps are not). The songs stay 44.1 kHz in
+their feeds and the music's one sound resamples them to the mix, so a junction between songs stays seamless. The final mix is limited (`peak_limiter.cpp`) and then dithered at 16-bit
+resolution (`output_dither.cpp`): Windows rounds the float mix for a 16-bit device without dither, which left a faint
+crackle in quiet music at high volume.
+
 **Converted files** (`python tools\assets\convert_assets.py`, next to the originals, which stay as they are; argon loads
 `<name>.flac` / `<name>.ogg` in place of a game `.wav` when it is there: `audio.cpp` `loadGameSound`. The folders are
 still listed by their `.wav` names, also once the `.wav` is deleted (`game_sound_files.hpp` `listGameSounds`: one

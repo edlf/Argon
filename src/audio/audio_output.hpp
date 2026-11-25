@@ -52,6 +52,7 @@ class AudioOutput
     void openWithoutDevice(int sampleRate, mix::SpeakerLayout layout);   // tests: mixed only by renderFrames
     bool isOpen() const;
     mix::SpeakerLayout layout() const;
+    int sampleRate() const;   // the mix's: 44.1 kHz on a 44.1 kHz device, else the Xbox's 48 kHz; 0 until open
     void setMasterVolume(float volume);
     void suspend();   // the device stops: every sound holds where it is, nothing is mixed
     void resume();
@@ -79,9 +80,11 @@ class AudioOutput
         None      // mixed only by renderFrames
     };
     void start(Device device, int sampleRate);
-    hrtf::Ears earsFor(const hrtf::Direction &direction) const;
-
     struct Mixer;
+    void initEngine(Mixer &mixer, bool withDevice, int rate);
+    hrtf::Ears earsFor(const hrtf::Direction &direction) const;
+    float hrtfDelayScale() const;
+
     std::unique_ptr<Mixer> mixer_;
     hrtf::Tables hrtfTables_;
     hrtf::KemarTables kemarTables_;
