@@ -103,7 +103,7 @@ argon --post-aa smaa                      post-process anti-aliasing off/fxaa/sm
 argon --oit off                           translucency on/off: Order Independent or the game's order (default settings.json's)
 argon --renderer vulkan|d3d12             the graphics API (default: settings.json's, else vulkan)
 argon --mute                              no audio
-argon --decode in.wav out.wav             decode a game WAV (Xbox ADPCM), FLAC or Ogg Vorbis to PCM (prints its play length and loop)
+argon_decode in.wav out.wav              decode a game WAV (Xbox ADPCM), FLAC or Ogg Vorbis to PCM (prints its play length and loop)
 ```
 These are the common ones. The test options (start on a menu page, jump into a race, a replay, a race end, the
 tournament, multiplayer, ...) are parsed in `src\launch\launch_options.cpp`, grouped by what they start. Where the

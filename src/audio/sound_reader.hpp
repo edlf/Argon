@@ -26,8 +26,6 @@ struct SoundReader
     std::shared_ptr<Pcm> loadLoop(const std::filesystem::path &file);   // load, then makeLoopable
 };
 
-std::string lower(std::string text);
-std::string pathKey(const std::filesystem::path &p);   // a path's case-insensitive cache key
 std::string readTextFile(const std::filesystem::path &path);
 std::filesystem::path findChild(const std::filesystem::path &dir, const std::string &name);   // case-insensitive
 // a file and the speaker mixbins it plays on (mix::speakerFileGains)

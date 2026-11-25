@@ -1,6 +1,7 @@
 // WAV files: Xbox ADPCM (format 0x69) and PCM16 decoding, PCM16 writing (docs/audio/README.md).
 #include "wav.hpp"
-#include "model/cmm.hpp"   // readFile
+#include "audio/adpcm_chunk_ends.hpp"
+#include "files/game_path.hpp"
 #include "original/record_read.hpp"
 #include "original/wav_records.hpp"
 
@@ -47,10 +48,10 @@ static inline int16_t imaNibble(int nib, int &pred, int &idx)
 // A block holds 64 samples per channel: the header sample followed by the first 63 nibbles
 // (the 64th nibble is padding). Checked against the files: this layout joins blocks seamlessly
 // and matches the `fact` sample counts; dropping the header sample puts a step at every block
-// (a 345 Hz buzz at 22 kHz).
+// (a 345 Hz buzz at 22 kHz). The last sample of every 128th block is the encoder's mistake (adpcm_chunk_ends.hpp).
 static void decodeXboxAdpcm(const uint8_t *bytes, size_t size, int ch, size_t blockAlign, std::vector<int16_t> &out)
 {
-    const int spb = 64;
+    const int spb = int(kAdpcmBlockFrames);
     int16_t decoded[8][64];
     for (size_t b = 0; b + blockAlign <= size; b += blockAlign)
     {
@@ -178,6 +179,7 @@ Pcm loadWav(const std::string &path)
     else if (fmt == original::kWavXboxAdpcm && ba == 36 * ch)
     {
         decodeXboxAdpcm(data, dataSize, ch, ba, out.samples);
+        repairAdpcmChunkEnds(out.samples, ch);
         // Don't trim to `fact` here: looping sounds wrap on whole 64-sample blocks (measured:
         // the full-block seam is smooth, the fact-trimmed seam clicks up to ~3x a normal step).
         // One-shots stop at playFrames instead.

@@ -14,7 +14,7 @@ deletes those originals, and only those: everything else is kept and listed. Not
 scenes' speech in data/movies/speech, the saves and their custom music, the converted files). The viewer plays the
 converted files without the originals (audio\\game_sound_files.hpp).
 
-usage: python tools/assets/delete_converted_originals.py [--delete] [--ffmpeg <path to ffmpeg>] [--argon <path to argon>] [--game <folder>]
+usage: python tools/assets/delete_converted_originals.py [--delete] [--ffmpeg <path to ffmpeg>] [--decoder <path to argon_decode>] [--game <folder>]
 """
 import argparse
 import subprocess

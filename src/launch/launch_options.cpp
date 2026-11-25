@@ -5,15 +5,11 @@
 #include <cstdlib>
 #include <filesystem>
 
-#include "audio/audio.hpp"
-#include "audio/wav.hpp"
 #include "logic/race_eggs.hpp"
 #include "logic/split_screen.hpp"
 #include "logic/tourney_rules.hpp"
 #include "ui/mainmenu.hpp"
 #include "ui/page_id.hpp"
-
-namespace fs = std::filesystem;
 
 namespace
 {
@@ -70,37 +66,6 @@ int printTourneyOrder()
         }
     }
     return 0;
-}
-
-// debug: decode a WAV (Xbox ADPCM) / FLAC / Ogg Vorbis to PCM
-int decodeSound(const std::string &in, const std::string &out)
-{
-    argon::Pcm pcm;
-    try
-    {
-        pcm = argon::loadSound(fs::path(std::u8string(in.begin(), in.end())));
-    }
-    catch (const std::runtime_error &e)
-    {
-        std::fprintf(stderr, "%s\n", e.what());
-        return 1;
-    }
-    int peak = 0;
-    for (auto sample : pcm.samples)
-    {
-        peak = std::max(peak, std::abs(int(sample)));
-    }
-    std::printf("%s: %d ch, %d Hz, %.2f s, peak %d, play %zu, loop [%zu, %zu)\n",
-                in.c_str(),
-                pcm.channels,
-                pcm.rate,
-                pcm.seconds(),
-                peak,
-                pcm.playFrames,
-                pcm.sampleLoopBegin,
-                pcm.sampleLoopEnd);
-    std::fflush(stdout);
-    return argon::writeWav(out, pcm) ? 0 : 1;
 }
 
 class LaunchParser
@@ -545,11 +510,6 @@ class LaunchParser
         if (arg == "--tourney-order")
         {
             options_.exitCode = printTourneyOrder();
-        }
-        else if (arg == "--decode")
-        {
-            const std::string in = args_.take();
-            options_.exitCode = decodeSound(in, args_.take());
         }
     }
 

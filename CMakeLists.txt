@@ -450,6 +450,7 @@ set(ARGON_SOURCES
     # sound and music (src/audio)
     src/audio/audio.cpp
     src/audio/sound_reading.cpp
+    src/audio/sound_load.cpp
     src/audio/engine_voices.cpp
     src/audio/track_loops.cpp
     src/audio/loop_voice.cpp
@@ -464,6 +465,7 @@ set(ARGON_SOURCES
     src/audio/song_feed.cpp
     src/audio/song_sources.cpp
     src/audio/wav.cpp
+    src/audio/adpcm_chunk_ends.cpp
     src/audio/ship_sound_list.cpp
     src/audio/generic_sounds.cpp
     src/audio/race_sfx.cpp
@@ -593,6 +595,19 @@ if(ARGON_DEVELOP)
     add_argon_game(argon_debug ON)
 endif()
 
+# argon_decode <sound> <out.wav>: one sound decoded as argon plays it (src\tools\decode_sound.cpp), for
+# tools\assets\convert_assets.py
+add_executable(argon_decode
+    src/tools/decode_sound.cpp
+    src/audio/sound_load.cpp
+    src/audio/wav.cpp
+    src/audio/adpcm_chunk_ends.cpp
+    src/audio/song_files.cpp
+    src/files/game_path.cpp)
+target_include_directories(argon_decode PRIVATE src)
+target_link_libraries(argon_decode PRIVATE argon_audio_codecs)
+argon_warnings(argon_decode)
+
 # --- tests (tests\menu_tests.cpp: the menu helpers' arithmetic, no window / GPU); run with test.bat or ctest
 enable_testing()
 add_executable(argon_tests tests/menu_tests.cpp)
@@ -639,6 +654,14 @@ add_executable(argon_output_dither_tests
 target_include_directories(argon_output_dither_tests PRIVATE src)
 argon_warnings(argon_output_dither_tests)
 add_test(NAME output_dither_tests COMMAND argon_output_dither_tests)
+
+# tests\adpcm_chunk_ends_tests.cpp: the Xbox ADPCM encoder's lost chunk-end samples rebuilt (audio\adpcm_chunk_ends.hpp)
+add_executable(argon_adpcm_chunk_ends_tests
+    tests/adpcm_chunk_ends_tests.cpp
+    src/audio/adpcm_chunk_ends.cpp)
+target_include_directories(argon_adpcm_chunk_ends_tests PRIVATE src)
+argon_warnings(argon_adpcm_chunk_ends_tests)
+add_test(NAME adpcm_chunk_ends_tests COMMAND argon_adpcm_chunk_ends_tests)
 
 # tests\weapon_damage_tests.cpp: a weapon hit's damage arithmetic (logic\weapon_damage.hpp, the game's 0x6acf0)
 add_executable(argon_weapon_damage_tests

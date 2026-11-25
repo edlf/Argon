@@ -52,7 +52,7 @@ its saves go in `save_data` next to `game_data`. `--game <folder>` names that fo
 directly in it, also works: the saves then go into its `save_data`).
 
 ## Game assets
-Videos, music and sound effects: `python tools\assets\convert_assets.py [--force] [--ffmpeg <ffmpeg>] [--argon <argon.exe>] [--game <folder>]`
+Videos, music and sound effects: `python tools\assets\convert_assets.py [--force] [--ffmpeg <ffmpeg>] [--decoder <argon_decode.exe>] [--game <folder>]`
 converts them next to the originals with ffmpeg (needs ffmpeg installed, with libtheora and libvorbis, and argon built: it decodes the
 Xbox ADPCM sounds): the intro videos (Bink, .bik) to one .ogv each (Theora picture + Vorbis soundtrack, muxed), which argon plays before
 the title screen (`--no-intro` skips them; A / START skips one once the front end's models have loaded, about a second); the music
@@ -70,7 +70,7 @@ writes `hrtf_kemar.bin` in the project folder, beside `game_data` (argon also fi
 KEMAR Taps cuts to 64, 128, 256 or 512. A 64-tap file from an older converter still plays, at 64 taps whatever the choice;
 the argon before KEMAR Taps refuses the 512-tap file (it plays the Xbox's filters then).
 
-Deleting the converted originals: `python tools\assets\delete_converted_originals.py [--delete] [--ffmpeg <ffmpeg>] [--argon <argon.exe>] [--game <folder>]`
+Deleting the converted originals: `python tools\assets\delete_converted_originals.py [--delete] [--ffmpeg <ffmpeg>] [--decoder <argon_decode.exe>] [--game <folder>]`
 reports, for each .bik / .wav the converter handles, whether its conversion is there, up to date and passes the converter's check again
 (the dry run, with the space it would free); `--delete` deletes only those verified originals, anything else is kept and listed. The
 argon runs without them (it lists the folders by their .wav names from the .flac / .ogg); the speech .wav files (`data\movies\speech`)

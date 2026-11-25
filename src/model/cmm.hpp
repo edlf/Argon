@@ -5,6 +5,7 @@
 #include <string>
 #include <vector>
 
+#include "files/game_path.hpp"   // readFile, for the model's callers
 #include "model/bone_aim.hpp"
 #include "original/cmm_records.hpp"
 
@@ -157,7 +158,5 @@ struct Cmm
     // a morph mesh's positions at t seconds (cmm_morph.hpp); the other vertex fields are left as they are
     void morph(const CmmMesh &mesh, float seconds, Vertex *out) const;
 };
-
-bool readFile(const std::string &path, std::vector<uint8_t> &out);
 
 } // namespace argon

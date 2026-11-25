@@ -2,6 +2,8 @@
 
 #include <algorithm>
 #include <cctype>
+#include <fstream>
+#include <iterator>
 #include <string>
 
 namespace fs = std::filesystem;
@@ -75,6 +77,17 @@ bool gamePathExists(const fs::path &path)
 {
     std::error_code ec;
     return fs::exists(findGamePath(path), ec);
+}
+
+bool readFile(const std::string &path, std::vector<uint8_t> &out)
+{
+    std::ifstream f(findGamePath(path), std::ios::binary);
+    if (!f)
+    {
+        return false;
+    }
+    out.assign(std::istreambuf_iterator<char>(f), std::istreambuf_iterator<char>());
+    return !f.bad();
 }
 
 }  // namespace argon

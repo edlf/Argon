@@ -149,7 +149,7 @@ struct LaunchOptions
     RaceTestStart raceTest;
     DriveStart drive;
     ViewerLaunch viewer;
-    std::optional<int> exitCode;   // a command that ran at parse time (--decode, --tourney-order): exit with this
+    std::optional<int> exitCode;   // a command that ran at parse time (--tourney-order): exit with this
 };
 
 LaunchOptions parseLaunchOptions(int argc, char **argv);

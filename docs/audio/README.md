@@ -8,6 +8,13 @@ padding) — verified: blocks join seamlessly and totals match the `fact` chunk;
 skipping the header sample (a common mistake, and my first version) puts a step
 at every block = audible 345 Hz buzz. Stereo interleaves 4-byte groups per channel.
 
+**The encoder's chunk ends**: the game's encoder worked in chunks of 128 blocks (8192 samples per channel) and coded
+each chunk's last sample (block 128·k − 1, sample 63) against silence, so its nibble (often 6 or 7) pulls it toward 0.
+That is a one-sample click every 0.37 s at 22050 Hz, heard as a faint crackle in frontend_music1..5 and
+levelload_music1. Measured on the originals: about half of those samples are off, and every one of them is off toward
+0; no other block position shows it. The decoder rebuilds that sample halfway between its neighbours: the next
+block's header is the true next sample (`adpcm_chunk_ends.cpp`). Files converted before the fix still carry the clicks.
+
 **Loops** wrap on whole 64-sample blocks: keep the full decode for looping sounds
 (trimming to `fact` made the wrap click, up to ~3× a normal step) and use `fact`
 only for one-shots. 150 files carry an `smpl` chunk; nearly all loop the whole file.
@@ -15,7 +22,7 @@ Some shipped loops still aren't seamless (Silver's ocean, Fuusoku's city), so th
 argon crossfades the last ~12 ms into the start and loops from there — every loop
 then wraps within the sound's own sample-to-sample range.
 Music: PCM16 stereo 44.1 kHz (front-end music: stereo ADPCM). Decoder:
-`src\audio\wav.cpp` (`argon --decode in.wav out.wav` writes PCM and prints the format, `playFrames` and the `smpl` loop).
+`src\audio\wav.cpp` (`argon_decode in.wav out.wav`, its own small tool, writes PCM and prints the format, `playFrames` and the `smpl` loop).
 
 **Output** (`audio_output.cpp`): the mix runs at the Xbox's 48 kHz, which the HRTF and crosstalk filters are designed
 for, except on a 44.1 kHz device, where it runs at 44.1 kHz so the songs play unresampled instead of going
@@ -41,9 +48,9 @@ music's segments and the engines' `.ini` layer names don't change):
   comment `PLAYLENGTH`, read into `Pcm::playFrames` where one-shots stop (`song_files.cpp` `playFramesFromComments`),
   and the `smpl` loop (150 files) the comments `LOOPSTART` (first frame) and `LOOPLENGTH` (frames, `end + 1 - start`),
   read into `Pcm::sampleLoopBegin / End` (`sampleLoopFromComments`). The script checks each Ogg on argon's own
-  decode: the same length, play length and loop as the `.wav` (`argon --decode` prints them).
+  decode: the same length, play length and loop as the `.wav` (`argon_decode` prints them).
 - Not converted: the story scenes' speech, `data\movies\speech` (224 ADPCM files, read from the `.wav`).
-- Deleting the originals: `python tools\assets\delete_converted_originals.py [--delete] [--ffmpeg <ffmpeg>] [--argon <argon.exe>]
+- Deleting the originals: `python tools\assets\delete_converted_originals.py [--delete] [--ffmpeg <ffmpeg>] [--decoder <argon_decode.exe>]
   [--game <folder>]` checks each original the converter handles (the `.bik` videos too) and reports it as verified (the
   converted file is there, not older, and passes the converter's check again: the FLAC's samples, the Ogg's lengths
   and loop on argon's decode, the `.ogv`'s soundtrack and frame count), not converted, out of date or failing.

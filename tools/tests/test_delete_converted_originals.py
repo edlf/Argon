@@ -1,5 +1,5 @@
 """Tests for tools\\assets\\delete_converted_originals.py and the discovery it shares with tools\\assets\\convert_assets.py: which
-originals are found, their status (a fake verifier: no ffmpeg or argon), the summary and what --delete removes.
+originals are found, their status (a fake verifier: no ffmpeg or argon_decode), the summary and what --delete removes.
 
 run: python -m unittest discover -s tools\\tests   (test.bat runs it through CTest)
 """

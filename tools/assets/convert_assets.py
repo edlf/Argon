@@ -5,11 +5,11 @@ files are never changed):
                  (when the video has one) as Vorbis, muxed in Ogg. The viewer plays it in place of <name>.bik.
   music          media/music/<track>_music/*.wav -> <name>.flac, lossless: only the samples of the data chunk (the chunks
                  after it, LIST tags and Sound Forge's bext / regn / ... blocks, are not sound). The Xbox ADPCM ones
-                 (frontend_music, levelload_music) are decoded by the viewer (argon --decode) and cut to their fact
+                 (frontend_music, levelload_music) are decoded by argon's decoder (argon_decode) and cut to their fact
                  length. Each FLAC is decoded back and must equal the source's samples bit for bit.
   sound effects  audio/**/*.wav (Xbox ADPCM) -> <name>.ogg, Ogg Vorbis at 256 kbit/s, or libvorbis's highest bit rate
                  for the format when it rejects 256 kbit/s (mono 22050 Hz, all of the game's effects: its limit is
-                 90 kbit/s). Decoded by the viewer (argon --decode), every ADPCM block whole as the viewer keeps it
+                 90 kbit/s). Decoded by argon's decoder (argon_decode), every ADPCM block whole as the viewer keeps it
                  (loops wrap on whole blocks); the fact chunk's sample count is the comment PLAYLENGTH (where a
                  one-shot stops), the smpl chunk's loop the comments LOOPSTART (first frame) and LOOPLENGTH (frames).
                  Each Ogg is decoded back by the viewer and must give the .wav's length, play length and loop.
@@ -17,14 +17,14 @@ files are never changed):
 The viewer loads <name>.flac / <name>.ogg in place of a game .wav when it is there (audio\\audio.cpp loadGameSound), and
 lists a folder's sounds by those names when the .wav is gone (audio\\game_sound_files.hpp).
 
-usage: python tools/assets/convert_assets.py [--force] [--ffmpeg <path to ffmpeg>] [--argon <path to argon>] [--game <folder>]
+usage: python tools/assets/convert_assets.py [--force] [--ffmpeg <path to ffmpeg>] [--decoder <path to argon_decode>] [--game <folder>]
 
 Only the originals still there are converted (tools/assets/delete_converted_originals.py deletes the verified ones); with none
 left there is nothing to do. An output newer than its source is skipped unless --force (a video's .ogv also needs the
 soundtrack when the .bik has one; the separate <name>.ogg soundtrack of earlier video conversions is deleted). ffmpeg
 decodes Bink itself and encodes FLAC, Theora and Vorbis; install it from ffmpeg.org (Windows: winget install
-Gyan.FFmpeg; Linux: the distribution's ffmpeg package, built with libtheora and libvorbis). argon is the viewer, built
-by build.bat (default build\\argon.exe).
+Gyan.FFmpeg; Linux: the distribution's ffmpeg package, built with libtheora and libvorbis). argon_decode is argon's sound
+decoder, built by build.bat (default build\\argon_decode.exe).
 """
 import argparse
 import functools
@@ -143,10 +143,10 @@ def effect_comments(wav):
 
 
 def parse_decode_report(report):
-    """argon --decode's line: "... play <frames>, loop [<begin>, <end>)" -> (play frames, loop begin, loop end)"""
+    """argon_decode's line: "... play <frames>, loop [<begin>, <end>)" -> (play frames, loop begin, loop end)"""
     found = DECODE_REPORT.search(report)
     if not found:
-        raise ValueError(f"unexpected argon --decode output: {report!r}")
+        raise ValueError(f"unexpected argon_decode output: {report!r}")
     return tuple(int(number) for number in found.groups())
 
 
@@ -169,14 +169,14 @@ def find_tool(explicit, name, hint):
     return Path(found)
 
 
-def default_argon():
-    return PROJECT / "build" / ("argon.exe" if os.name == "nt" else "argon")
+def default_decoder():
+    return PROJECT / "build" / ("argon_decode.exe" if os.name == "nt" else "argon_decode")
 
 
 class Converter:
-    def __init__(self, ffmpeg, argon, force):
+    def __init__(self, ffmpeg, decoder, force):
         self.ffmpeg = ffmpeg
-        self.argon = argon
+        self.decoder = decoder
         self.force = force
 
     def needs_update(self, conversion):
@@ -187,7 +187,7 @@ class Converter:
         """the viewer's own decode (Xbox ADPCM, FLAC, Ogg Vorbis): all its samples as PCM16, its play length and loop"""
         with tempfile.TemporaryDirectory() as folder:
             decoded = Path(folder) / "decoded.wav"
-            command = [str(self.argon), "--decode", str(path), str(decoded)]
+            command = [str(self.decoder), str(path), str(decoded)]
             report = subprocess.run(command, check=True, capture_output=True, text=True, timeout=ENCODE_TIMEOUT_SECONDS).stdout
             wav = parse_wav(decoded.read_bytes())
         return DecodedSound(Pcm(wav.rate, wav.channels, wav.data), *parse_decode_report(report))
@@ -399,17 +399,17 @@ def conversions_of_kind(conversions, kind):
 
 
 def add_tool_arguments(parser):
-    """--ffmpeg, --argon and --game (shared with tools/assets/delete_converted_originals.py)"""
+    """--ffmpeg, --decoder and --game (shared with tools/assets/delete_converted_originals.py)"""
     parser.add_argument("--ffmpeg", help="path to ffmpeg")
-    parser.add_argument("--argon", default=str(default_argon()), help="path to the viewer, for its decode (default: build\\argon.exe)")
+    parser.add_argument("--decoder", default=str(default_decoder()), help="path to argon_decode, argon's sound decoder (default: build\\argon_decode.exe)")
     parser.add_argument("--game", default=str(PROJECT / "game_data"), help="the game's folder (default: game_data)")
 
 
 def find_tools(args):
-    """(ffmpeg, argon) from the arguments; exits when one is missing"""
+    """(ffmpeg, argon_decode) from the arguments; exits when one is missing"""
     ffmpeg = find_tool(args.ffmpeg, "ffmpeg", "install it (ffmpeg.org) or pass --ffmpeg <path to ffmpeg>")
-    argon = find_tool(args.argon, "argon", "build the viewer (build.bat) or pass --argon <path to argon>")
-    return ffmpeg, argon
+    decoder = find_tool(args.decoder, "argon_decode", "build it (build.bat) or pass --decoder <path to argon_decode>")
+    return ffmpeg, decoder
 
 
 def main():

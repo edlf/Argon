@@ -10,6 +10,7 @@
 #pragma once
 #include "wav.hpp"
 #include "audio/hrtf_set.hpp"
+#include "audio/sound_load.hpp"
 #include "audio/music_modes.hpp"
 #include "audio/spatial.hpp"
 #include "audio/world_effects.hpp"
@@ -21,10 +22,6 @@
 
 namespace argon
 {
-
-// a sound by its contents: FLAC ("fLaC", dr_flac) and Ogg Vorbis ("OggS", stb_vorbis) for custom music and the converted
-// game sounds, else WAV; throws std::runtime_error naming the file and what is wrong
-Pcm loadSound(const std::filesystem::path &path);
 
 // a game sound named by its .wav: the converted copy next to it (tools\assets\convert_assets.py: <name>.flac for the music,
 // <name>.ogg for the sound effects) when there is one, else the .wav

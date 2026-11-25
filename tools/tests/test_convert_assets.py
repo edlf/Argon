@@ -1,4 +1,4 @@
-"""Tests for tools\\assets\\convert_assets.py's pure rules: reading a game .wav's chunks, the Vorbis comments, argon --decode's
+"""Tests for tools\\assets\\convert_assets.py's pure rules: reading a game .wav's chunks, the Vorbis comments, argon_decode's
 report, the fact cut and the Vorbis bit rate search (no ffmpeg: a fake encoder check).
 
 run: python -m unittest discover -s tools\\tests   (test.bat runs it through CTest)
@@ -41,7 +41,7 @@ class FakeVorbisLimits(convert_assets.Converter):
     """accepts the bit rates in [lowest, highest] kbit/s"""
 
     def __init__(self, lowest, highest):
-        super().__init__(Path("ffmpeg"), Path("argon"), False)
+        super().__init__(Path("ffmpeg"), Path("argon_decode"), False)
         self.lowest = lowest
         self.highest = highest
 

@@ -2,7 +2,10 @@
 // (Locale\English, audio\generic\bronze\Bronze_L.wav), and the game's text files use '\' between folders. Windows finds
 // such a path as written; Linux needs every folder level matched by name, ignoring case.
 #pragma once
+#include <cstdint>
 #include <filesystem>
+#include <string>
+#include <vector>
 
 namespace argon
 {
@@ -12,5 +15,8 @@ namespace argon
 std::filesystem::path findGamePath(const std::filesystem::path &path);
 
 bool gamePathExists(const std::filesystem::path &path);
+
+// the whole file at findGamePath(path); false when it cannot be read
+bool readFile(const std::string &path, std::vector<uint8_t> &out);
 
 }  // namespace argon
